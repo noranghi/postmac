@@ -51,6 +51,7 @@ for i in range(RU):
             Gain[j][i] = G_ij
 
 Prx = Gain * Ptx
+#간섭 값 확인
 
 
 def show_location(RU, sp, lx, ly):
@@ -123,17 +124,107 @@ def make_graph(RU, sp, I_map, lx, ly, colored):
     nx.draw_networkx_edges(I_graph ,pos, edgelist= must)
     nx.draw_networkx_edges(I_graph, pos, edgelist= can, edge_color = 'b', style = 'dotted')
 
-    legend_labels = ['sp_1', 'sp_2', 'sp_3'] # Assuming sp values and corresponding labels
-
-
-    # Draw the legends for the nodes
+    #legend_labels = ['sp_1', 'sp_2', 'sp_3'] # Assuming sp values and corresponding labels
     plt.title('Interference graph')
-    plt.legend(legend_labels, loc='upper right', title='service provider')
+    #plt.legend(legend_labels, loc='upper right', title='service provider')
 
     # Show the plot
     plt.show()
 
 make_graph(RU, sp, I_map, lx, ly, color)
+
+#색 할당 하기 Welsh-Powell 전체적으로 필요할 자원 량 알기
+def welshPowell(I_map, RU, expect, Prx):
+    nodes = list(range(RU)) #그래프 노드 개수
+    colored = {i : [] for i in range(RU)} #각 노드들이 가지는 색상
+    I = {i : 0 for i in range(RU)} #간섭 허용률
+    colors = 0 #전체적으로 필요한 색깔
+    used= []
+    color_num = 0
+    #expect : 각 필요한 주파수 자원량
+    #Imap : 간섭 관계 확인
+    #Prx : 1넘는지 안넘는지
+    for i in range(max(expect)): #가장 할당이 필요한 개수가 많은 친구
+        color_dic = {}
+        used_color = []
+        for node in nodes:
+            if len(colored[node]) != expect[node]: #색깔은 온전히 다 못받았을 때
+                if len(color_dic.keys()) == 0:
+                    color_dic[node] = color_num
+                    used_color.append(color_num)
+                else:
+                    zero_conflict = []
+                    one_conflict = []
+                    two_conflict = []
+                    node_check = list(color_dic.keys())
+                    interference_Prx = []
+                    for i in node_check:
+                        # 0로 연결된 친구
+                        if I_map[node][i] == 0:
+                            zero_conflict.append(i)
+                        # 1로 연결된 친구
+                        elif I_map[node][i] == 1:
+                            one_conflict.append(i)
+                            used_color.remove(color_dic[i])
+                        # 2로 연결된 친구
+                        elif I_map[node][i] == 2:
+                            two_conflict.append(i)
+                            interference_Prx.append(Prx[node][i])
+
+                    if len(zero_conflict) != 0:
+                        if len(used_color) == 0:
+                            color_num += 1
+                            used_color.append(color_num)
+                            color_dic[node] = color_num
+                        else:
+                            for i in zero_conflict:
+                                if color_dic[i].values() in used_color:
+                                    color_dic[node] = color_dic[i].values()
+                                    break;
+
+                    elif len(two_conflict) != 0:
+                        if len(used_color) == 0:
+                            color_num += 1
+                            used_color.append(color_num)
+                            color_dic[node] = color_num
+                        else:
+                            for j in two_conflict:
+                                if color_dic[j].values() in used_color:
+                                    color_dic[node] = color_dic[i].values()
+
+
+                    if node not in color_dic.keys():
+                        color_num += 1
+                        used_color.append(color_num)
+                        color_dic[node] = color_num
+        print(color_dic)
+        print(used_color)
+
+
+
+welshPowell(I_map, RU, [1, 2, 3, 1, 1, 1, 1, 1, 1, 1,1,1, 1, 1, 1], Prx)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

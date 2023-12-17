@@ -124,12 +124,12 @@ def make_graph(RU, sp, I_map, lx, ly, colored):
 
     nx.draw_networkx_nodes(I_graph, pos, node_color = color)
     nx.draw_networkx_labels(I_graph, pos)
-    nx.draw_networkx_edges(I_graph ,pos, edgelist= must)
-    nx.draw_networkx_edges(I_graph, pos, edgelist= can, edge_color = 'b', style = 'dotted')
+    nx.draw_networkx_edges(I_graph ,pos, edgelist= must, label = 'interference')
+    nx.draw_networkx_edges(I_graph, pos, edgelist= can, edge_color = 'b', style = 'dotted', label = 'possibility')
 
-    #legend_labels = ['sp_1', 'sp_2', 'sp_3'] # Assuming sp values and corresponding labels
+    plt.legend()# Assuming sp values and corresponding labels
     plt.title('Interference graph')
-    #plt.legend(legend_labels, loc='upper right', title='service provider')
+
 
     # Show the plot
     plt.show()
@@ -142,7 +142,7 @@ random.seed(100)
 # service provider가 제공할 가격
 contract_price = []
 for i in range(sp):
-    contract_price.append(int(random.uniform(10, 20)) * 1000)
+    contract_price.append(int(random.uniform(50, 60)) * 1000)
 print(contract_price)
 
 expect = []
@@ -155,13 +155,13 @@ for i in range(RU):
 def order_score(sp, contract_price, RU, expect):
     add_score = []
     for i in range(sp):
-        add_score.append(math.log2(int((contract_price[i] / sum(contract_price)) * 1000)))
+        add_score.append(math.log2(int((contract_price[i] / sum(contract_price)) * 10000)))
     score = []
     num = int(RU // sp)
 
     for i in range(sp):  # 0, 1, 2
         for j in range(num * i, num * (i + 1)):
-            score.append(expect[j] + add_score[i])
+            score.append(math.log10(int(contract_price[i] / expect[j])))
     same_score = copy.copy(score)
 
     RU_order = []
@@ -173,7 +173,8 @@ def order_score(sp, contract_price, RU, expect):
     return RU_order, same_score
 
 
-order_score(sp, contract_price, RU, expect)[1]
+order = order_score(sp, contract_price, RU, expect)[0]
+
 
 
 # 색 할당 하기 Welsh-Powell 전체적으로 필요할 자원 량 알기
@@ -189,8 +190,8 @@ def welshPowell(sp, I_map, RU, order, expect, Prx, contract_price):
     # expect : 각 필요한 주파수 자원량
     # Imap : 간섭 관계 확인
     # Prx : 1넘는지 안넘는지
-    SAS_resource = sum(contract_price) // 3000
-    print(SAS_resource)
+    SAS_resource = sum(contract_price) //20000
+
 
     for i in range(max(expect)):  # 가장 할당이 필요한 개수가 많은 친구
         color_dic = {}
@@ -284,10 +285,10 @@ def welshPowell(sp, I_map, RU, order, expect, Prx, contract_price):
             colored[key] += [value]
         if color_num > SAS_resource:
             break;
-    """if sum(contract_price)//3000 >= color_num:
+    if sum(contract_price)//20000 >= color_num:
         SAS_resource = color_num
     else:
-        SAS_resource = sum(contract_price)//3000"""
+        SAS_resource = sum(contract_price)//20000
     sp_needs = []  # 각 원소
     how_many = []  # 몇개
     num_list = int(RU // sp)
@@ -315,8 +316,215 @@ def welshPowell(sp, I_map, RU, order, expect, Prx, contract_price):
     for i in range(RU):
         outage_RU = (expect[i] - len(colored[i])) / expect[i]
         out_RU.append(outage_RU)
+    #print(out_RU)
     for j in range(sp):
         outage.append(sum(out_RU[num_list * j:(num_list) * (j + 1)]) / num_list)
 
-    return I, color_num, colored, SAS_resource, outage
+    return I, color_num, colored, outage, SAS_resource
+
+print(welshPowell(sp, I_map, RU, order, expect, Prx, contract_price)[1])
+
+def test(sp, I_map, RU, order, expect, Prx):
+    # 그래프 노드 순서 = order
+    # SAS_access : SAS가 할당해줄 수 있는 최대 개수
+    colored = {i: [] for i in range(RU)}  # 각 노드들이 가지는 색상
+    colors = 0  # 전체적으로 필요한 색깔
+    used = []
+    color_num = 0
+    I = {i: 0 for i in range(RU)}  # 간섭 허용률
+    # expect : 각 필요한 주파수 자원량
+    # Imap : 간섭 관계 확인
+    # Prx : 1넘는지 안넘는지
+
+
+
+    for i in range(max(expect)):  # 가장 할당이 필요한 개수가 많은 친구
+        color_dic = {}
+        used_color = []
+        for node in order:
+            # loc = nodes.index(node)
+            if len(colored[node]) != expect[node]:  # 색깔은 온전히 다 못받았을 때
+                if len(color_dic.keys()) == 0:
+                    color_dic[node] = color_num
+                    used_color.append(color_num)
+                    # print(color_dic)
+                else:
+
+                    zero_conflict = []
+                    one_conflict = []
+                    two_conflict = []
+                    node_check = list(color_dic.keys())
+                    interference_Prx = []
+                    for i in node_check:
+                        # 0로 연결된 친구
+                        if I_map[node][i] == 0:
+                            zero_conflict.append(i)
+                        # 1로 연결된 친구
+                        elif I_map[node][i] == 1:
+                            one_conflict.append(i)
+                            if color_dic[i] in used_color:
+                                used_color.remove(color_dic[i])
+                        # 2로 연결된 친구
+                        elif I_map[node][i] == 2:
+                            two_conflict.append(i)
+                            interference_Prx.append(Prx[node][i])
+
+                    if len(zero_conflict) != 0:
+                        if len(used_color) == 0:
+                            color_num += 1
+                            used_color.append(color_num)
+                            color_dic[node] = color_num
+                        else:
+                            for i in zero_conflict:
+                                if color_dic[i] in used_color:
+                                    color_dic[node] = color_dic[i]
+                                    break;
+
+
+                    elif len(two_conflict) != 0:
+                        if len(used_color) == 0:
+                            color_num += 1
+                            used_color.append(color_num)
+                            color_dic[node] = color_num
+                        else:
+                            for j in two_conflict:
+                                if color_dic[j] in used_color:
+                                    color_dic[node] = color_dic[i]
+
+                    if node not in color_dic.keys():
+                        color_num += 1
+                        used_color.append(color_num)
+                        color_dic[node] = color_num
+
+
+                    check = 'can'
+                    own_interference = I[node]
+                    for i in color_dic.keys():
+                        if color_dic[node] == color_dic[i]:
+                            if I_map[node][i] == 2:
+                                own_interference += Prx[node][i]
+                                if own_interference > 1 or I[i] + Prx[node][i] > 1:
+                                    check = 'notcan'
+
+                    if check == 'notcan':
+                        color_dic[node] += 1
+                        color_num += 1
+                    else:
+                        for i in color_dic.keys():
+                            if i != node and color_dic[node] == color_dic[i]:
+                                if I_map[node][i] == 2:
+                                    I[node] += Prx[node][i]
+                                    I[i] += Prx[node][i]
+
+    color_num += 1
+
+    for key, value in color_dic.items():
+        colored[key] += [value]
+
+
+    return I, color_num, colored
+
+print(test(sp, I_map, RU, order, expect, Prx)[1])
+
+
+sp1_out = []
+sp2_out = []
+sp3_out = []
+nego = 0
+resource = []
+contract_price_1 = []
+contract_price_2 = []
+contract_price_3 = []
+contract_price = [125000, 125000, 125000]
+while True:
+    order = order_score(sp, contract_price, RU, expect)[0]
+    nego += 1
+
+    x = welshPowell(sp, I_map, RU, order, expect, Prx, contract_price)
+    resource.append(x[4])
+    sp1_out.append(x[3][0])
+    sp2_out.append(x[3][1])
+    sp3_out.append(x[3][2])
+    contract_price_1.append(contract_price[0])
+    contract_price_2.append(contract_price[1])
+    contract_price_3.append(contract_price[2])
+    if x[3][0] >= 0.1:
+        contract_price[0] += 50000
+    if x[3][1] >= 0.06:
+        contract_price[1] += 50000
+    if x[3][2] >= 0.06:
+        contract_price[2] += 50000
+
+    if x[3][0] < 0.1 and x[3][1] < 0.08 and x[3][2] < 0.06:
+
+        break;
+
+print(contract_price_1)
+print(contract_price_2)
+print(contract_price_3)
+
+print(sp1_out)
+print(sp2_out)
+print(sp3_out)
+
+print(resource)
+
+nego_list=[i for i in range(1, nego+1)]
+max_out_1 = [0.1]*len(sp1_out)
+max_out_2 = [0.08]*len(sp2_out)
+max_out_3 = [0.06]*len(sp3_out)
+plt.plot(nego_list, sp1_out, color='red', label = 'sp_1 outage probability')
+plt.plot(nego_list, sp2_out, color='blue', label = 'sp_2 outage probability')
+plt.plot(nego_list,sp3_out, color='orange', label = 'sp_3 outage probability')
+plt.plot(max_out_1, color='red', linestyle='dashed', label='SP 1 max outage probability')
+plt.plot(max_out_2, color='orange', linestyle='dashed', label='SP 2 max outage probability')
+plt.plot(max_out_3, color='blue', linestyle='dashed', label='SP 3 max outage probability')
+
+plt.title('service provider''s outage probability')
+plt.legend()
+plt.show()
+
+
+plt.plot(contract_price_1, label = 'sp_1 contract price')
+plt.plot(contract_price_2, label = 'sp_2 contract price')
+plt.plot(contract_price_3, label = 'sp_3 contract price')
+plt.title('service provider''s contract price')
+plt.legend()
+plt.show()
+
+plt.plot([test(sp, I_map, RU, order, expect, Prx)[1]] * len(resource), label = 'Total Resources')
+plt.plot(resource, label = 'Used Resources')
+plt.legend()
+plt.title('Frequency Resource Usage')
+plt.show()
+
+
+"""
+sp_1 = []
+sp_2 = []
+sp_3 = []
+difference = []
+SAS_resource = []
+for i in range(10):
+    order = order_score(sp, contract_price, RU, expect)[0]
+    x = welshPowell(sp, I_map, RU, order, expect, Prx, contract_price)
+    SAS_resource.append(x[4])
+    if len(sp_1) != 0:
+        difference.append(abs(x[3][0] - sp_1[-1]))
+    sp_1.append(x[3][0])
+    sp_2.append(x[3][1])
+    sp_3.append(x[3][2])
+
+    contract_price[0] += 50000
+
+
+print(sp_1)
+plt.plot(sp_1)
+plt.plot(sp_2)
+plt.plot(sp_3)
+plt.show()
+"""
+
+
+
 
